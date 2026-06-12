@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Brighton Henniversary — The Big Shop</title>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #F8F4EE; font-family: Georgia, serif; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    const API_KEY = "$2a$10$wYu.VAGvonHB2HvkB0czn.UyqmgWhX/i5xsL1dgq2gQjumApDjASy";
+    const BIN_ID  = "6a2c3ac8da38895dfeb61a10";
+    const BASE    = "https://api.jsonbin.io/v3/b";
+
+    const CATS = [
+      { id:"drinks",     label:"Drinks & Mixers",  emoji:"🥂", color:"#C8A96E", bg:"#FDF6E9", border:"#EDD9A3" },
+      { id:"snacks",     label:"Snacks & Nibbles",  emoji:"🍿", color:"#3A9E8F", bg:"#EDF7F5", border:"#A8DDD6" },
+      { id:"breakfast",  label:"Breakfast Bits",    emoji:"🍳", color:"#C86E8A", bg:"#FDF0F4", border:"#EDB8C8" },
+      { id:"essentials", label:"House Essentials",  emoji:"🧻", color:"#7A6EC8", bg:"#F3F1FB", border:"#C4BCEA" },
+      { id:"other",      label:"Everything Else",   emoji:"🛍️", color:"#B5894A", bg:"#FBF2E6", border:"#E8CFA8" },
+    ];
+
+    function App() {
+      const [items, setItems]     = useState([]);
+      const [loading, setLoading] = useState(true);
+      const [saving, setSaving]   = useState(false);
+      const [error, setError]     = useState(null);
+      const [newItem, setNewItem] = useState("");
+      const [newName, setNewName] = useState(() => localStorage.getItem("brighton-name") || "");
+      const [cat, setCat]         = useState("drinks");
+
+      useEffect(() => { load(); }, []);
+
+      async function load() {
+        setLoading(true);
+        try {
+          const r = await fetch(`${BASE}/${BIN_ID}/latest`, {
+            headers: { "X-Master-Key": API_KEY }
+          });
+          if (!r.ok) throw new Error();
+          const d = await r.json();
+          setItems(d.record?.items || []);
+        } catch { showErr("Couldn't load list — check connection"); }
+        finally { setLoading(false); }
+      }
+
+      async function persist(updated) {
+        setSaving(true);
+        setItems(updated);
+        try {
+          const r = await fetch(`${BASE}/${BIN_ID}`, {
+            method: "PUT",
+            headers: { "X-Master-Key": API_KEY, "Content-Type": "application/json" },
+            body: JSON.stringify({ items: updated })
+          });
+          if (!r.ok) throw new Error();
+        } catch { showErr("Couldn't save — try again"); }
+        finally { setSaving(false); }
+      }
+
+      function showErr(msg) { setError(msg); setTimeout(() => setError(null), 3000); }
+
+      function addItem(e) {
+        e.preventDefault();
+        if (!newItem.trim()) return;
+        const name = newName.trim() || "Someone";
+        localStorage.setItem("brighton-name", name);
+        persist([...items, {
+          id: Date.now().toString(36) + Math.random().toString(36).slice(2),
+          text: newItem.trim(),
+          category: cat,
+          addedBy: name,
+          done: false
+        }]);
+        setNewItem("");
+      }
+
+      const toggle = id => persist(items.map(i => i.id === id ? { ...i, done: !i.done } : i));
+      const remove = id => persist(items.filter(i => i.id !== id));
+      const total  = items.length;
+      const done   = items.filter(i => i.done).length;
+
+      const inp = {
+        padding: "10px 12px", fontSize: "13px", border: "1.5px solid #EDD9A3",
+        borderRadius: "8px", fontFamily: "Georgia, serif", color: "#2A2020",
+        outline: "none", background: "#FDF6E9"
+      };
+
+      return (
+        <div style={{ minHeight:"100vh", background:"#F8F4EE", fontFamily:"Georgia,serif",
+          color:"#2A2020", padding:"32px 16px 60px" }}>
+          <div style={{ maxWidth:"560px", margin:"0 auto" }}>
+
+            {/* Header */}
+            <div style={{ textAlign:"center", marginBottom:"28px" }}>
+              <div style={{ fontSize:"11px", letterSpacing:"0.4em", color:"#C8A96E",
+                marginBottom:"8px", textTransform:"uppercase" }}>Brighton Henniversary</div>
+              <h1 style={{ fontSize:"clamp(32px,8vw,46px)", fontWeight:"normal", fontStyle:"italic",
+                lineHeight:1.05, color:"#1B3A5C", letterSpacing:"-0.02em" }}>The Big Shop</h1>
+              <div style={{ width:"44px", height:"2px", background:"#C8A96E", margin:"12px auto" }}/>
+              <p style={{ fontSize:"13px", color:"#8A7A6A", letterSpacing:"0.06em" }}>
+                Add anything you want at the Airbnb — everyone can see and tick things off
+              </p>
+              <button onClick={load} style={{ marginTop:"10px", background:"none", border:"none",
+                cursor:"pointer", color:"#C8A96E", fontSize:"12px", fontFamily:"Georgia,serif" }}>
+                ↻ refresh
+              </button>
+            </div>
+
+            {/* Progress */}
+            {total > 0 && (
+              <div style={{ background:"#fff", border:"1.5px solid #EDD9A3", borderRadius:"10px",
+                padding:"12px 16px", marginBottom:"20px", display:"flex", alignItems:"center", gap:"12px" }}>
+                <div style={{ flex:1, height:"8px", background:"#F3ECE0", borderRadius:"4px", overflow:"hidden" }}>
+                  <div style={{ height:"100%", width:`${(done/total)*100}%`, background:"#3A9E8F",
+                    borderRadius:"4px", transition:"width 0.3s ease" }}/>
+                </div>
+                <div style={{ fontSize:"12px", color:"#8A7A6A", whiteSpace:"nowrap" }}>
+                  {done} / {total} got {saving ? "⏳" : ""}
+                </div>
+              </div>
+            )}
+
+            {/* Add form */}
+            <form onSubmit={addItem} style={{ background:"#fff", border:"1.5px solid #EDD9A3",
+              borderRadius:"12px", padding:"16px", marginBottom:"28px" }}>
+              <div style={{ marginBottom:"10px" }}>
+                <input type="text" value={newItem} onChange={e => setNewItem(e.target.value)}
+                  placeholder="What do we need? e.g. Tonic water"
+                  style={{ ...inp, width:"100%", fontSize:"14px" }} />
+              </div>
+              <div style={{ display:"flex", gap:"8px", flexWrap:"wrap" }}>
+                <input type="text" value={newName}
+                  onChange={e => { setNewName(e.target.value); localStorage.setItem("brighton-name", e.target.value); }}
+                  placeholder="Your name"
+                  style={{ ...inp, flex:"1 1 120px" }} />
+                <select value={cat} onChange={e => setCat(e.target.value)}
+                  style={{ ...inp, flex:"1 1 140px" }}>
+                  {CATS.map(c => <option key={c.id} value={c.id}>{c.emoji} {c.label}</option>)}
+                </select>
+                <button type="submit" disabled={saving} style={{
+                  padding:"10px 18px", fontSize:"13px", fontWeight:"bold",
+                  background: saving ? "#8A9BAC" : "#1B3A5C", color:"#F5E6C8",
+                  border:"none", borderRadius:"8px",
+                  cursor: saving ? "not-allowed" : "pointer", fontFamily:"Georgia,serif"
+                }}>+ Add</button>
+              </div>
+            </form>
+
+            {error && (
+              <div style={{ background:"#FDF0F4", border:"1.5px solid #EDB8C8", color:"#8B3A56",
+                borderRadius:"8px", padding:"10px 14px", fontSize:"13px",
+                marginBottom:"16px", textAlign:"center" }}>{error}</div>
+            )}
+
+            {loading && (
+              <div style={{ textAlign:"center", padding:"40px 0", color:"#9A8A7A" }}>
+                <div style={{ width:"28px", height:"28px", border:"3px solid #EDD9A3",
+                  borderTopColor:"#C8A96E", borderRadius:"50%",
+                  animation:"spin 1s linear infinite", margin:"0 auto 10px" }}/>
+                <p style={{ fontSize:"13px", fontStyle:"italic" }}>Loading the list…</p>
+              </div>
+            )}
+
+            {!loading && total === 0 && (
+              <div style={{ textAlign:"center", padding:"40px 20px",
+                border:"1.5px dashed #EDD9A3", borderRadius:"12px", color:"#9A8A7A" }}>
+                <div style={{ fontSize:"36px", marginBottom:"10px" }}>🛒</div>
+                <p style={{ fontSize:"14px", fontStyle:"italic" }}>
+                  The list is empty — be the first to add something!
+                </p>
+              </div>
+            )}
+
+            {/* Category sections */}
+            {!loading && CATS.map(c => {
+              const ci = items.filter(i => i.category === c.id);
+              if (!ci.length) return null;
+              return (
+                <div key={c.id} style={{ marginBottom:"24px" }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:"10px",
+                    background:c.bg, border:`1.5px solid ${c.border}`,
+                    borderRadius:"12px 12px 0 0", padding:"10px 16px", borderBottom:"none" }}>
+                    <span style={{ fontSize:"18px" }}>{c.emoji}</span>
+                    <span style={{ fontSize:"15px", fontStyle:"italic", color:c.color }}>{c.label}</span>
+                    <span style={{ marginLeft:"auto", fontSize:"11px", color:"#9A8A7A" }}>
+                      {ci.filter(i => i.done).length}/{ci.length}
+                    </span>
+                  </div>
+                  <div style={{ background:"#fff", border:`1.5px solid ${c.border}`,
+                    borderTop:"none", borderRadius:"0 0 12px 12px", overflow:"hidden" }}>
+                    {ci.map((item, idx) => (
+                      <div key={item.id} style={{ display:"flex", alignItems:"center", gap:"12px",
+                        padding:"12px 16px",
+                        borderBottom: idx < ci.length - 1 ? `1px solid ${c.border}55` : "none",
+                        opacity: item.done ? 0.5 : 1, transition:"opacity 0.2s" }}>
+                        <button onClick={() => toggle(item.id)} style={{
+                          width:"26px", height:"26px", flexShrink:0, borderRadius:"50%",
+                          border:`2px solid ${item.done ? c.color : c.border}`,
+                          background: item.done ? c.color : "transparent",
+                          display:"flex", alignItems:"center", justifyContent:"center",
+                          cursor:"pointer", padding:0, color:"#fff", fontSize:"14px"
+                        }}>{item.done ? "✓" : ""}</button>
+                        <div style={{ flex:1, minWidth:0 }}>
+                          <div style={{ fontSize:"15px", color:"#1E1E2A",
+                            textDecoration: item.done ? "line-through" : "none", lineHeight:1.3 }}>
+                            {item.text}
+                          </div>
+                          <div style={{ fontSize:"11px", color:"#B0A294", fontStyle:"italic" }}>
+                            added by {item.addedBy}
+                          </div>
+                        </div>
+                        <button onClick={() => remove(item.id)} style={{
+                          background:"none", border:"none", cursor:"pointer",
+                          color:"#D4C4A8", padding:"6px", flexShrink:0, fontSize:"18px", lineHeight:1
+                        }}>×</button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+
+            {!loading && (
+              <div style={{ textAlign:"center", marginTop:"12px" }}>
+                <p style={{ fontSize:"11px", color:"#C4B49A", letterSpacing:"0.12em" }}>
+                  SHARED LIST · HIT REFRESH TO SYNC 🥂
+                </p>
+              </div>
+            )}
+
+          </div>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+  </script>
+</body>
+</html>
